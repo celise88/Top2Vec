@@ -684,7 +684,7 @@ class Top2Vec:
             if tsne_args is None:
                 tsne_args = {'n_components': 2,
                             'perplexity': 30,
-                            'early_exaggeration': 10
+                            'early_exaggeration': 10,
                             'init': 'pca'}
 
             tsne_model = TSNE(**tsne_args).fit_transform(self.document_vectors)
