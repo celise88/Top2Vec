@@ -19,6 +19,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
 from sklearn.manifold import TSNE
+from sklearn.cluster import KMeans
 
 try:
     import hnswlib
@@ -392,6 +393,8 @@ class Top2Vec:
                  dimRedTech='TSNE',
                  tsne_args=None,
                  umap_args=None,
+                 clusterTech='KMeans',
+                 kmeans_args=None,
                  hdbscan_args=None,
                  verbose=True
                  ):
@@ -672,14 +675,23 @@ class Top2Vec:
 
             # find dense areas of document vectors
             logger.info('Finding dense areas of documents')
+            
+            if clusterTech=='HDBscan':
+                if hdbscan_args is None:
+                    hdbscan_args = {'min_cluster_size': 15,
+                                    'metric': 'euclidean',
+                                    'cluster_selection_method': 'eom'}
 
-            if hdbscan_args is None:
-                hdbscan_args = {'min_cluster_size': 15,
-                                'metric': 'euclidean',
-                                'cluster_selection_method': 'eom'}
+                cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+            
+            if clusterTech=='KMeans':
+                if kmeans_args is None:
+                    kmeans_args = {'n_clusters': 50,
+                                    'random_state': 0}
+                
+                cluster = KMeans(**kmeans_args).fit_predict(self.document_vectors)
 
-            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
-        
+
         if dimRedTech=='TSNE':
             if tsne_args is None:
                 tsne_args = {'n_components': 2,
@@ -691,19 +703,29 @@ class Top2Vec:
             
             # find dense areas of document vectors
             logger.info('Finding dense areas of documents')
+            if clusterTech=='HDBscan':
+                if hdbscan_args is None:
+                    hdbscan_args = {'min_cluster_size': 15,
+                                    'metric': 'euclidean',
+                                    'cluster_selection_method': 'eom'}
 
-            if hdbscan_args is None:
-                hdbscan_args = {'min_cluster_size': 15,
-                                'metric': 'euclidean',
-                                'cluster_selection_method': 'eom'}
+                cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(tsne_model)
 
-            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(tsne_model)
+            if clusterTech=='KMeans':
+                if kmeans_args is None:
+                    kmeans_args = {'n_clusters': 50,
+                                    'random_state': 0}
+                
+                cluster = KMeans(**kmeans_args).fit_predict(self.document_vectors)
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
 
         # create topic vectors
-        self._create_topic_vectors(cluster.labels_)
+        if clusterTech=='HDBscan':
+            self._create_topic_vectors(cluster.labels_)
+        else:
+            self._create_topic_vectors(cluster)
 
         # deduplicate topics
         self._deduplicate_topics()
