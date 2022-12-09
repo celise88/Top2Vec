@@ -18,6 +18,7 @@ import tempfile
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import normalize
 from scipy.special import softmax
+from sklearn.manifold import TSNE
 
 try:
     import hnswlib
@@ -388,6 +389,8 @@ class Top2Vec:
                  workers=None,
                  tokenizer=None,
                  use_embedding_model_tokenizer=False,
+                 dimRedTech='TSNE',
+                 tsne_args=None,
                  umap_args=None,
                  hdbscan_args=None,
                  verbose=True
@@ -659,23 +662,42 @@ class Top2Vec:
 
         # create 5D embeddings of documents
         logger.info('Creating lower dimension embedding of documents')
+        if dimRedTech=='UMAP':
+            if umap_args is None:
+                umap_args = {'n_neighbors': 15,
+                            'n_components': 5,
+                            'metric': 'cosine'}
 
-        if umap_args is None:
-            umap_args = {'n_neighbors': 15,
-                         'n_components': 5,
-                         'metric': 'cosine'}
+            umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
 
-        umap_model = umap.UMAP(**umap_args).fit(self.document_vectors)
+            # find dense areas of document vectors
+            logger.info('Finding dense areas of documents')
 
-        # find dense areas of document vectors
-        logger.info('Finding dense areas of documents')
+            if hdbscan_args is None:
+                hdbscan_args = {'min_cluster_size': 15,
+                                'metric': 'euclidean',
+                                'cluster_selection_method': 'eom'}
 
-        if hdbscan_args is None:
-            hdbscan_args = {'min_cluster_size': 15,
-                            'metric': 'euclidean',
-                            'cluster_selection_method': 'eom'}
+            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+        
+        if dimRedTech=='TSNE':
+            if tsne_args is None:
+                tsne_args = {'n_components': 2,
+                            'perplexity': 30,
+                            'early_exaggeration': 10
+                            'init': 'pca'}
 
-        cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(umap_model.embedding_)
+            tsne_model = TSNE(**tsne_args).fit_transform(self.document_vectors)
+            
+            # find dense areas of document vectors
+            logger.info('Finding dense areas of documents')
+
+            if hdbscan_args is None:
+                hdbscan_args = {'min_cluster_size': 15,
+                                'metric': 'euclidean',
+                                'cluster_selection_method': 'eom'}
+
+            cluster = hdbscan.HDBSCAN(**hdbscan_args).fit(tsne_model)
 
         # calculate topic vectors from dense areas of documents
         logger.info('Finding topics')
